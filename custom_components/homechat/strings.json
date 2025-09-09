@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to HomeChat",
+        "description": "Enter your HomeChat server details",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "ssl": "Use SSL",
+          "api_token": "API Token"
+        }
+      },
+      "bot": {
+        "title": "Bot Configuration",
+        "description": "Configure the Home Assistant bot in HomeChat",
+        "data": {
+          "bot_username": "Bot Username",
+          "enable_webhook": "Enable Two-way Communication"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to HomeChat. Check your host and port.",
+      "invalid_auth": "Invalid API token. Check your credentials.",
+      "unknown": "Unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This HomeChat instance is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HomeChat Options",
+        "description": "Update your HomeChat integration settings",
+        "data": {
+          "bot_username": "Bot Username",
+          "enable_webhook": "Enable Two-way Communication"
+        }
+      }
+    }
+  }
+}

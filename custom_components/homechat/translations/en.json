@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to HomeChat",
+        "description": "Enter your HomeChat server details to connect Home Assistant to your chat server.",
+        "data": {
+          "host": "HomeChat Host",
+          "port": "Port (default: 3000)",
+          "ssl": "Use SSL/HTTPS",
+          "api_token": "API Token"
+        },
+        "data_description": {
+          "host": "The hostname or IP address of your HomeChat server",
+          "port": "The port HomeChat is running on",
+          "ssl": "Enable if HomeChat is served over HTTPS",
+          "api_token": "API token for authentication (create in HomeChat admin panel)"
+        }
+      },
+      "bot": {
+        "title": "Bot Configuration", 
+        "description": "Configure how Home Assistant appears in HomeChat and enable two-way communication.",
+        "data": {
+          "bot_username": "Bot Username",
+          "enable_webhook": "Enable Two-way Communication"
+        },
+        "data_description": {
+          "bot_username": "The username for the Home Assistant bot in HomeChat",
+          "enable_webhook": "Allow HomeChat to send messages back to Home Assistant"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to HomeChat. Please check your host, port, and network connectivity.",
+      "invalid_auth": "Invalid API token. Please check your credentials in the HomeChat admin panel.",
+      "unknown": "An unexpected error occurred. Please check the logs."
+    },
+    "abort": {
+      "already_configured": "This HomeChat instance is already configured in Home Assistant."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HomeChat Options",
+        "description": "Update your HomeChat integration settings.",
+        "data": {
+          "bot_username": "Bot Username",
+          "enable_webhook": "Enable Two-way Communication"
+        }
+      }
+    }
+  }
+}

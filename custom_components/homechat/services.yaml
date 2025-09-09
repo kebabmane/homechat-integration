@@ -1,0 +1,89 @@
+send_message:
+  name: Send Message
+  description: Send a message to HomeChat
+  fields:
+    message:
+      name: Message
+      description: The message content to send
+      required: true
+      selector:
+        text:
+          multiline: true
+    room_id:
+      name: Room ID
+      description: The room/channel to send the message to
+      required: false
+      selector:
+        text:
+    user_id:
+      name: User ID
+      description: Specific user to send the message to
+      required: false
+      selector:
+        text:
+    title:
+      name: Title
+      description: Optional title for the message
+      required: false
+      selector:
+        text:
+
+send_notification:
+  name: Send Notification
+  description: Send a formatted notification to HomeChat
+  fields:
+    message:
+      name: Message
+      description: The notification message content
+      required: true
+      selector:
+        text:
+          multiline: true
+    title:
+      name: Title
+      description: Notification title
+      required: false
+      selector:
+        text:
+    priority:
+      name: Priority
+      description: Notification priority level
+      required: false
+      default: "normal"
+      selector:
+        select:
+          options:
+            - "low"
+            - "normal" 
+            - "high"
+            - "urgent"
+    room_id:
+      name: Room ID
+      description: The room/channel to send the notification to
+      required: false
+      selector:
+        text:
+
+create_bot:
+  name: Create Bot
+  description: Create a new bot in HomeChat
+  fields:
+    name:
+      name: Bot Name
+      description: Name for the new bot
+      required: true
+      selector:
+        text:
+    description:
+      name: Description
+      description: Optional description for the bot
+      required: false
+      selector:
+        text:
+          multiline: true
+    webhook_id:
+      name: Webhook ID
+      description: Optional webhook ID for two-way communication
+      required: false
+      selector:
+        text:
