@@ -269,7 +269,7 @@ Test the integration using Home Assistant's developer tools:
 ## Support
 
 For issues and feature requests:
-- Check the [GitHub repository](https://github.com/your-username/homechat-integration)
+- Check the [GitHub repository](https://github.com/kebabmane/homechat-integration)
 - Review Home Assistant logs for error details
 - Ensure HomeChat server is compatible with the integration
 
