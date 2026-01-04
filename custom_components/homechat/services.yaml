@@ -81,9 +81,82 @@ create_bot:
       selector:
         text:
           multiline: true
-    webhook_id:
-      name: Webhook ID
-      description: Optional webhook ID for two-way communication
+    webhook_url:
+      name: Webhook URL
+      description: Optional webhook URL for two-way communication
       required: false
       selector:
         text:
+
+list_channels:
+  name: List Channels
+  description: Get a list of available HomeChat channels
+
+join_channel:
+  name: Join Channel
+  description: Join a HomeChat channel
+  fields:
+    channel_id:
+      name: Channel ID
+      description: The ID of the channel to join
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+
+leave_channel:
+  name: Leave Channel
+  description: Leave a HomeChat channel
+  fields:
+    channel_id:
+      name: Channel ID
+      description: The ID of the channel to leave
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+
+send_dm:
+  name: Send Direct Message
+  description: Send a direct message to a user
+  fields:
+    user_id:
+      name: User ID
+      description: The ID of the user to message
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+    message:
+      name: Message
+      description: The message content to send
+      required: true
+      selector:
+        text:
+          multiline: true
+
+search:
+  name: Search
+  description: Search HomeChat for users, channels, or messages
+  fields:
+    query:
+      name: Query
+      description: The search query
+      required: true
+      selector:
+        text:
+    type:
+      name: Type
+      description: Type of search to perform
+      required: false
+      default: "all"
+      selector:
+        select:
+          options:
+            - "all"
+            - "users"
+            - "channels"
+            - "messages"

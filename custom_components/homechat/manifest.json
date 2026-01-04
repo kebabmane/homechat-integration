@@ -2,11 +2,13 @@
   "domain": "homechat",
   "name": "HomeChat",
   "documentation": "https://github.com/kebabmane/homechat-integration",
+  "issue_tracker": "https://github.com/kebabmane/homechat-integration/issues",
   "dependencies": [],
   "codeowners": ["@kebabmane"],
   "requirements": ["aiohttp>=3.8.0"],
   "iot_class": "local_push",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "config_flow": true,
-  "integration_type": "service"
+  "integration_type": "hub",
+  "loggers": ["custom_components.homechat"]
 }
