@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "HomeChat ({name})",
     "step": {
       "user": {
         "title": "Connect to HomeChat",
@@ -17,8 +18,18 @@
           "api_token": "API token for authentication (create in HomeChat admin panel)"
         }
       },
+      "zeroconf_confirm": {
+        "title": "HomeChat Server Discovered",
+        "description": "A HomeChat server was automatically discovered on your network:\n\n**{name}** at {host}:{port}\n\nEnter your API token to connect.",
+        "data": {
+          "api_token": "API Token"
+        },
+        "data_description": {
+          "api_token": "API token for authentication (create in HomeChat admin panel)"
+        }
+      },
       "bot": {
-        "title": "Bot Configuration", 
+        "title": "Bot Configuration",
         "description": "Configure how Home Assistant appears in HomeChat and enable two-way communication.",
         "data": {
           "bot_username": "Bot Username",

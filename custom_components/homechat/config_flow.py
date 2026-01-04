@@ -10,6 +10,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
+from homeassistant.components.zeroconf import ZeroconfServiceInfo
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
@@ -46,6 +47,13 @@ STEP_BOT_DATA_SCHEMA = vol.Schema(
     }
 )
 
+# Schema for zeroconf-discovered servers (only need API token)
+STEP_ZEROCONF_CONFIRM_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_API_TOKEN): cv.string,
+    }
+)
+
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for HomeChat."""
@@ -55,12 +63,105 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def __init__(self) -> None:
         """Initialize the config flow."""
         self.data: dict[str, Any] = {}
+        self._discovered_host: str | None = None
+        self._discovered_port: int = DEFAULT_PORT
+        self._discovered_ssl: bool = DEFAULT_SSL
+        self._discovered_name: str | None = None
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: config_entries.ConfigEntry) -> config_entries.OptionsFlow:
         """Create the options flow."""
         return OptionsFlow(config_entry)
+
+    async def async_step_zeroconf(
+        self, discovery_info: ZeroconfServiceInfo
+    ) -> FlowResult:
+        """Handle zeroconf discovery of a HomeChat server."""
+        _LOGGER.debug("Zeroconf discovery: %s", discovery_info)
+
+        # Extract host and port from discovery info
+        host = str(discovery_info.host)
+        port = discovery_info.port or DEFAULT_PORT
+
+        # Check if already configured
+        await self.async_set_unique_id(f"{host}:{port}")
+        self._abort_if_unique_id_configured()
+
+        # Extract properties from TXT record
+        properties = discovery_info.properties or {}
+        server_name = discovery_info.name.replace("._homechat._tcp.local.", "")
+        is_secure = properties.get("secure", "false").lower() == "true"
+        version = properties.get("version", "unknown")
+
+        # Store discovered info
+        self._discovered_host = host
+        self._discovered_port = port
+        self._discovered_ssl = is_secure
+        self._discovered_name = server_name
+
+        # Set the title for the discovery notification
+        self.context["title_placeholders"] = {
+            "name": server_name,
+            "host": host,
+        }
+
+        _LOGGER.info(
+            "Discovered HomeChat server: %s at %s:%s (secure=%s, version=%s)",
+            server_name, host, port, is_secure, version
+        )
+
+        return await self.async_step_zeroconf_confirm()
+
+    async def async_step_zeroconf_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Confirm zeroconf discovery and get API token."""
+        if user_input is None:
+            return self.async_show_form(
+                step_id="zeroconf_confirm",
+                data_schema=STEP_ZEROCONF_CONFIRM_SCHEMA,
+                description_placeholders={
+                    "name": self._discovered_name,
+                    "host": self._discovered_host,
+                    "port": str(self._discovered_port),
+                },
+            )
+
+        errors = {}
+
+        # Build data with discovered info + user-provided token
+        data = {
+            CONF_HOST: self._discovered_host,
+            CONF_PORT: self._discovered_port,
+            CONF_SSL: self._discovered_ssl,
+            CONF_API_TOKEN: user_input[CONF_API_TOKEN],
+        }
+
+        try:
+            info = await validate_input(self.hass, data)
+        except CannotConnect:
+            errors["base"] = ERROR_CANNOT_CONNECT
+        except InvalidAuth:
+            errors["base"] = ERROR_INVALID_AUTH
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Unexpected exception")
+            errors["base"] = ERROR_UNKNOWN
+        else:
+            self.data.update(data)
+            self.data["title"] = info["title"]
+            return await self.async_step_bot()
+
+        return self.async_show_form(
+            step_id="zeroconf_confirm",
+            data_schema=STEP_ZEROCONF_CONFIRM_SCHEMA,
+            errors=errors,
+            description_placeholders={
+                "name": self._discovered_name,
+                "host": self._discovered_host,
+                "port": str(self._discovered_port),
+            },
+        )
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
