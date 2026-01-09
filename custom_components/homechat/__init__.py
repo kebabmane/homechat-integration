@@ -50,6 +50,7 @@ from .const import (
     API_CHANNEL_LEAVE,
     API_CHANNEL_MEMBERS,
     API_CHANNEL_MESSAGES,
+    API_CHANNEL_MEDIA,
     API_DM_START,
     API_CREATE_BOT,
     API_BOT_STATUS,
@@ -65,6 +66,7 @@ SEND_MESSAGE_SCHEMA = vol.Schema(
         vol.Optional("room_id"): cv.string,
         vol.Optional("user_id"): cv.string,
         vol.Optional("title"): cv.string,
+        vol.Optional("image"): cv.string,  # Local file path or URL
     }
 )
 
@@ -289,6 +291,68 @@ class HomeChatAPI:
                 return await response.json()
         except aiohttp.ClientError as err:
             _LOGGER.error("Error sending channel message to HomeChat: %s", err)
+            raise
+
+    async def async_get_or_create_channel(self, room_id: str) -> int | None:
+        """Get channel ID by name, creating it if necessary via send_message."""
+        # First try to find existing channel
+        try:
+            channels_response = await self.async_get_channels()
+            channels = channels_response.get("channels", [])
+            for channel in channels:
+                if channel.get("name") == room_id:
+                    return channel.get("id")
+        except Exception as err:
+            _LOGGER.debug("Error fetching channels: %s", err)
+
+        # Channel doesn't exist - create it by sending a placeholder message
+        # The API auto-creates channels when sending messages
+        try:
+            result = await self.async_send_message(
+                message="Channel created",
+                room_id=room_id,
+            )
+            # Fetch channels again to get the ID
+            channels_response = await self.async_get_channels()
+            channels = channels_response.get("channels", [])
+            for channel in channels:
+                if channel.get("name") == room_id:
+                    return channel.get("id")
+        except Exception as err:
+            _LOGGER.error("Error creating channel %s: %s", room_id, err)
+
+        return None
+
+    async def async_send_media(
+        self,
+        channel_id: int,
+        image_data: bytes,
+        caption: str | None = None,
+        filename: str = "image.jpg",
+    ) -> dict[str, Any]:
+        """Upload media to a channel in HomeChat."""
+        url = f"{self.base_url}{API_CHANNEL_MEDIA.format(channel_id=channel_id)}"
+        headers = {
+            "Authorization": f"Bearer {self.api_token}",
+        }
+
+        # Create multipart form data
+        data = aiohttp.FormData()
+        data.add_field(
+            "files[]",
+            image_data,
+            filename=filename,
+            content_type="image/jpeg",
+        )
+        if caption:
+            data.add_field("caption", caption)
+
+        try:
+            async with self._session.post(url, data=data, headers=headers, timeout=API_TIMEOUT) as response:
+                response.raise_for_status()
+                return await response.json()
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Error uploading media to HomeChat: %s", err)
             raise
 
     async def async_send_dm(self, user_id: int, message: str) -> dict[str, Any]:
@@ -534,6 +598,74 @@ async def async_register_webhook(
     _LOGGER.info("Registered HomeChat webhook: %s", webhook_id)
 
 
+async def _load_image(hass: HomeAssistant, image_path: str) -> bytes | None:
+    """Load image data from a file path or URL."""
+    import os
+    from pathlib import Path
+
+    try:
+        # Check if it's a URL
+        if image_path.startswith(("http://", "https://")):
+            session = async_get_clientsession(hass)
+            async with session.get(image_path, timeout=API_TIMEOUT) as response:
+                if response.status == 200:
+                    return await response.read()
+                _LOGGER.error("Failed to fetch image from URL: %s (status %s)", image_path, response.status)
+                return None
+
+        # Check if it's a local HA camera proxy URL
+        if image_path.startswith("/api/camera_proxy/"):
+            # Need to use internal API to fetch camera image
+            entity_id = image_path.replace("/api/camera_proxy/", "")
+            camera_state = hass.states.get(entity_id)
+            if camera_state:
+                from homeassistant.components.camera import async_get_image
+                try:
+                    image = await async_get_image(hass, entity_id)
+                    return image.content
+                except Exception as err:
+                    _LOGGER.error("Failed to get camera image for %s: %s", entity_id, err)
+                    return None
+
+        # Try as a local file path
+        path = Path(image_path)
+        if not path.is_absolute():
+            # Try relative to config directory
+            path = Path(hass.config.path(image_path))
+
+        if path.exists() and path.is_file():
+            return await hass.async_add_executor_job(path.read_bytes)
+
+        _LOGGER.error("Image file not found: %s", image_path)
+        return None
+
+    except Exception as err:
+        _LOGGER.error("Error loading image from %s: %s", image_path, err)
+        return None
+
+
+def _get_filename_from_path(image_path: str) -> str:
+    """Extract filename from a path or URL."""
+    from pathlib import Path
+    import os
+
+    # Handle URLs
+    if image_path.startswith(("http://", "https://")):
+        from urllib.parse import urlparse
+        parsed = urlparse(image_path)
+        filename = os.path.basename(parsed.path)
+        if filename:
+            return filename
+
+    # Handle camera proxy URLs
+    if image_path.startswith("/api/camera_proxy/"):
+        entity_id = image_path.replace("/api/camera_proxy/", "")
+        return f"{entity_id.replace('.', '_')}.jpg"
+
+    # Handle file paths
+    return Path(image_path).name or "image.jpg"
+
+
 async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None:
     """Register HomeChat services."""
 
@@ -543,10 +675,41 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
         room_id = call.data.get("room_id")
         user_id = call.data.get("user_id")
         title = call.data.get("title")
-        
+        image = call.data.get("image")
+
         try:
-            await api.async_send_message(message, room_id, user_id, title)
-            _LOGGER.info("Sent message to HomeChat: %s", message)
+            # If image is provided, upload it as media
+            if image:
+                # Get or create channel first
+                channel_id = None
+                if room_id:
+                    channel_id = await api.async_get_or_create_channel(room_id)
+
+                if channel_id:
+                    # Load image data
+                    image_data = await _load_image(hass, image)
+                    if image_data:
+                        # Format caption with title if provided
+                        caption = message
+                        if title:
+                            caption = f"**{title}**\n{caption}"
+
+                        await api.async_send_media(
+                            channel_id=channel_id,
+                            image_data=image_data,
+                            caption=caption,
+                            filename=_get_filename_from_path(image),
+                        )
+                        _LOGGER.info("Sent message with image to HomeChat channel %s", room_id)
+                    else:
+                        _LOGGER.warning("Could not load image from %s, sending message without image", image)
+                        await api.async_send_message(message, room_id, user_id, title)
+                else:
+                    _LOGGER.warning("Could not get channel ID for %s, sending message without image", room_id)
+                    await api.async_send_message(message, room_id, user_id, title)
+            else:
+                await api.async_send_message(message, room_id, user_id, title)
+                _LOGGER.info("Sent message to HomeChat: %s", message)
         except Exception as err:
             _LOGGER.error("Failed to send message to HomeChat: %s", err)
 

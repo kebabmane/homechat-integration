@@ -1,6 +1,6 @@
 send_message:
   name: Send Message
-  description: Send a message to HomeChat
+  description: Send a message to HomeChat with optional image attachment
   fields:
     message:
       name: Message
@@ -24,6 +24,12 @@ send_message:
     title:
       name: Title
       description: Optional title for the message
+      required: false
+      selector:
+        text:
+    image:
+      name: Image
+      description: Image to attach (local file path, URL, or camera entity path like /api/camera_proxy/camera.front_door)
       required: false
       selector:
         text:
