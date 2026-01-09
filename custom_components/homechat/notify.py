@@ -58,7 +58,7 @@ class HomeChatNotificationService(BaseNotificationService):
         """Send a message to HomeChat."""
         title = kwargs.get(ATTR_TITLE)
         targets = kwargs.get(ATTR_TARGET)
-        data = kwargs.get(ATTR_DATA, {})
+        data = kwargs.get(ATTR_DATA) or {}
 
         # Extract additional data
         room_id = data.get("room_id")

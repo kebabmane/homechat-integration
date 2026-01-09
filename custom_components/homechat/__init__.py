@@ -78,7 +78,7 @@ CREATE_BOT_SCHEMA = vol.Schema(
     {
         vol.Required("name"): cv.string,
         vol.Optional("description"): cv.string,
-        vol.Optional("webhook_url"): cv.string,
+        vol.Optional("webhook_id"): cv.string,
     }
 )
 
@@ -158,11 +158,11 @@ class HomeChatAPI:
             raise
 
     async def async_create_bot(
-        self, name: str, description: str | None = None, webhook_url: str | None = None
+        self, name: str, description: str | None = None, webhook_id: str | None = None
     ) -> dict[str, Any]:
         """Create a bot in HomeChat.
 
-        Returns the bot data including webhook_secret if webhook_url was provided.
+        Returns the bot data including webhook_secret if webhook_id was provided.
         """
         url = f"{self.base_url}{API_CREATE_BOT}"
         headers = {
@@ -172,13 +172,13 @@ class HomeChatAPI:
         # API expects data wrapped in "bot" object with "bot_type" field
         bot_data: dict[str, Any] = {
             "name": name,
-            "bot_type": "webhook" if webhook_url else "api",
+            "bot_type": "webhook" if webhook_id else "api",
         }
 
         if description:
             bot_data["description"] = description
-        if webhook_url:
-            bot_data["webhook_url"] = webhook_url
+        if webhook_id:
+            bot_data["webhook_id"] = webhook_id
 
         data = {"bot": bot_data}
 
@@ -386,14 +386,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Create bot if configured (before registering webhook to get secret)
     if bot_username and webhook_id and not bot_id:
         try:
-            # Build webhook URL for HomeChat to call back
-            scheme = "https" if ssl else "http"
-            webhook_url = f"{scheme}://{host}:{port}/api/webhook/{webhook_id}"
-
             result = await api.async_create_bot(
                 name=bot_username,
                 description="Home Assistant Bot for two-way communication",
-                webhook_url=webhook_url,
+                webhook_id=webhook_id,
             )
             _LOGGER.info("Created HomeChat bot: %s", result)
 
@@ -573,10 +569,10 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
         """Handle create_bot service call."""
         name = call.data["name"]
         description = call.data.get("description")
-        webhook_url = call.data.get("webhook_url")
+        webhook_id = call.data.get("webhook_id")
 
         try:
-            result = await api.async_create_bot(name, description, webhook_url)
+            result = await api.async_create_bot(name, description, webhook_id)
             _LOGGER.info("Created HomeChat bot: %s", result)
         except Exception as err:
             _LOGGER.error("Failed to create HomeChat bot: %s", err)
