@@ -5,7 +5,6 @@ import logging
 from typing import Any
 
 from homeassistant.components import conversation
-from homeassistant.components.conversation import agent
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import intent

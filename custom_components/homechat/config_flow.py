@@ -10,7 +10,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
-from homeassistant.components.zeroconf import ZeroconfServiceInfo
+from homeassistant.helpers.service_info.zeroconf import ZeroconfServiceInfo
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
