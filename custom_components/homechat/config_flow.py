@@ -234,6 +234,68 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data=import_info,
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle reconfiguration of the integration."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        if entry is None:
+            return self.async_abort(reason="reconfigure_failed")
+
+        if user_input is None:
+            return self.async_show_form(
+                step_id="reconfigure",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(CONF_HOST, default=entry.data.get(CONF_HOST)): cv.string,
+                        vol.Optional(CONF_PORT, default=entry.data.get(CONF_PORT, DEFAULT_PORT)): cv.port,
+                        vol.Optional(CONF_SSL, default=entry.data.get(CONF_SSL, DEFAULT_SSL)): cv.boolean,
+                        vol.Required(CONF_API_TOKEN, default=entry.data.get(CONF_API_TOKEN)): cv.string,
+                    }
+                ),
+            )
+
+        errors = {}
+
+        try:
+            info = await validate_input(self.hass, user_input)
+        except CannotConnect:
+            errors["base"] = ERROR_CANNOT_CONNECT
+        except InvalidAuth:
+            errors["base"] = ERROR_INVALID_AUTH
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Unexpected exception during reconfigure")
+            errors["base"] = ERROR_UNKNOWN
+        else:
+            # Update the entry with new data, preserving webhook and bot settings
+            new_data = {
+                **entry.data,
+                CONF_HOST: user_input[CONF_HOST],
+                CONF_PORT: user_input[CONF_PORT],
+                CONF_SSL: user_input.get(CONF_SSL, DEFAULT_SSL),
+                CONF_API_TOKEN: user_input[CONF_API_TOKEN],
+            }
+            self.hass.config_entries.async_update_entry(
+                entry,
+                title=info["title"],
+                data=new_data,
+            )
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_abort(reason="reconfigure_successful")
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HOST, default=user_input.get(CONF_HOST)): cv.string,
+                    vol.Optional(CONF_PORT, default=user_input.get(CONF_PORT, DEFAULT_PORT)): cv.port,
+                    vol.Optional(CONF_SSL, default=user_input.get(CONF_SSL, DEFAULT_SSL)): cv.boolean,
+                    vol.Required(CONF_API_TOKEN, default=user_input.get(CONF_API_TOKEN)): cv.string,
+                }
+            ),
+            errors=errors,
+        )
+
 
 class OptionsFlow(config_entries.OptionsFlow):
     """Handle options."""
@@ -247,7 +309,22 @@ class OptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Manage the options."""
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            # Update entry data with new bot settings
+            new_data = dict(self.config_entry.data)
+            new_data[CONF_BOT_USERNAME] = user_input.get(CONF_BOT_USERNAME, DEFAULT_BOT_USERNAME)
+
+            # Handle webhook enable/disable
+            if user_input.get("enable_webhook", False):
+                if new_data.get(CONF_WEBHOOK_ID) is None:
+                    new_data[CONF_WEBHOOK_ID] = async_generate_id()
+            else:
+                new_data[CONF_WEBHOOK_ID] = None
+
+            self.hass.config_entries.async_update_entry(
+                self.config_entry,
+                data=new_data,
+            )
+            return self.async_create_entry(title="", data={})
 
         current_bot_username = self.config_entry.data.get(CONF_BOT_USERNAME, DEFAULT_BOT_USERNAME)
         has_webhook = self.config_entry.data.get(CONF_WEBHOOK_ID) is not None

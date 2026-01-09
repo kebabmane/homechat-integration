@@ -18,6 +18,16 @@
           "bot_username": "Bot Username",
           "enable_webhook": "Enable Two-way Communication"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure HomeChat",
+        "description": "Update your HomeChat server connection details",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "ssl": "Use SSL",
+          "api_token": "API Token"
+        }
       }
     },
     "error": {
@@ -26,7 +36,9 @@
       "unknown": "Unexpected error occurred."
     },
     "abort": {
-      "already_configured": "This HomeChat instance is already configured."
+      "already_configured": "This HomeChat instance is already configured.",
+      "reconfigure_successful": "Configuration updated successfully.",
+      "reconfigure_failed": "Failed to reconfigure the integration."
     }
   },
   "options": {

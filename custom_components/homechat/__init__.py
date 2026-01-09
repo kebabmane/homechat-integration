@@ -8,8 +8,11 @@ import logging
 from typing import Any
 
 import aiohttp
-from aiohttp import web
+from aiohttp import ClientTimeout, web
 import voluptuous as vol
+
+# API timeout configuration
+API_TIMEOUT = ClientTimeout(total=30)
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -150,7 +153,7 @@ class HomeChatAPI:
             data["title"] = title
 
         try:
-            async with self._session.post(url, json=data, headers=headers) as response:
+            async with self._session.post(url, json=data, headers=headers, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
@@ -183,7 +186,7 @@ class HomeChatAPI:
         data = {"bot": bot_data}
 
         try:
-            async with self._session.post(url, json=data, headers=headers) as response:
+            async with self._session.post(url, json=data, headers=headers, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
@@ -196,7 +199,7 @@ class HomeChatAPI:
             url = f"{self.base_url}{API_HEALTH}"
             headers = {"Authorization": f"Bearer {self.api_token}"}
 
-            async with self._session.get(url, headers=headers, timeout=10) as response:
+            async with self._session.get(url, headers=headers, timeout=API_TIMEOUT) as response:
                 return response.status == 200
         except Exception as err:
             _LOGGER.error("Error testing connection to HomeChat: %s", err)
@@ -211,7 +214,7 @@ class HomeChatAPI:
         }
 
         try:
-            async with self._session.get(url, headers=headers) as response:
+            async with self._session.get(url, headers=headers, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
@@ -227,7 +230,7 @@ class HomeChatAPI:
         }
 
         try:
-            async with self._session.get(url, headers=headers) as response:
+            async with self._session.get(url, headers=headers, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
@@ -243,7 +246,7 @@ class HomeChatAPI:
         }
 
         try:
-            async with self._session.post(url, headers=headers) as response:
+            async with self._session.post(url, headers=headers, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
@@ -259,7 +262,7 @@ class HomeChatAPI:
         }
 
         try:
-            async with self._session.post(url, headers=headers) as response:
+            async with self._session.post(url, headers=headers, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
@@ -281,7 +284,7 @@ class HomeChatAPI:
         }
 
         try:
-            async with self._session.post(url, json=data, headers=headers) as response:
+            async with self._session.post(url, json=data, headers=headers, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
@@ -301,7 +304,7 @@ class HomeChatAPI:
         }
 
         try:
-            async with self._session.post(url, json=data, headers=headers) as response:
+            async with self._session.post(url, json=data, headers=headers, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
@@ -323,7 +326,7 @@ class HomeChatAPI:
         }
 
         try:
-            async with self._session.get(url, headers=headers, params=params) as response:
+            async with self._session.get(url, headers=headers, params=params, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
@@ -339,7 +342,7 @@ class HomeChatAPI:
         }
 
         try:
-            async with self._session.get(url, headers=headers) as response:
+            async with self._session.get(url, headers=headers, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:

@@ -39,6 +39,22 @@
           "bot_username": "The username for the Home Assistant bot in HomeChat",
           "enable_webhook": "Allow HomeChat to send messages back to Home Assistant"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure HomeChat",
+        "description": "Update your HomeChat server connection details.",
+        "data": {
+          "host": "HomeChat Host",
+          "port": "Port (default: 3000)",
+          "ssl": "Use SSL/HTTPS",
+          "api_token": "API Token"
+        },
+        "data_description": {
+          "host": "The hostname or IP address of your HomeChat server",
+          "port": "The port HomeChat is running on",
+          "ssl": "Enable if HomeChat is served over HTTPS",
+          "api_token": "API token for authentication"
+        }
       }
     },
     "error": {
@@ -47,7 +63,9 @@
       "unknown": "An unexpected error occurred. Please check the logs."
     },
     "abort": {
-      "already_configured": "This HomeChat instance is already configured in Home Assistant."
+      "already_configured": "This HomeChat instance is already configured in Home Assistant.",
+      "reconfigure_successful": "Configuration updated successfully.",
+      "reconfigure_failed": "Failed to reconfigure the integration."
     }
   },
   "options": {

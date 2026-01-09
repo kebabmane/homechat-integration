@@ -45,7 +45,7 @@ SERVICE_SEARCH = "search"
 
 # Platforms
 from homeassistant.const import Platform
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.CONVERSATION]
 
 # Event types
 EVENT_HOMECHAT_MESSAGE_RECEIVED = "homechat_message_received"

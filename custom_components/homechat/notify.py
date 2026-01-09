@@ -32,26 +32,46 @@ async def async_get_service(
     if entry_id not in hass.data[DOMAIN]:
         return None
 
-    api = hass.data[DOMAIN][entry_id]["api"]
-    return HomeChatNotificationService(hass, api)
+    data = hass.data[DOMAIN][entry_id]
+    api = data["api"]
+    coordinator = data.get("coordinator")
+    return HomeChatNotificationService(hass, api, entry_id, coordinator)
 
 
 class HomeChatNotificationService(BaseNotificationService):
     """Implementation of a notification service for HomeChat."""
 
-    def __init__(self, hass: HomeAssistant, api) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        api,
+        entry_id: str,
+        coordinator=None,
+    ) -> None:
         """Initialize the service."""
         self.hass = hass
         self.api = api
+        self._entry_id = entry_id
+        self._coordinator = coordinator
 
     @property
     def targets(self) -> dict[str, str] | None:
         """Return a dictionary of targets available for the notification service."""
-        # This could be expanded to dynamically fetch available rooms/users
+        # Get dynamic channels from coordinator
+        if self._coordinator and self._coordinator.channels:
+            targets = {}
+            for channel in self._coordinator.channels:
+                channel_id = channel.get("id")
+                channel_name = channel.get("name", f"channel_{channel_id}")
+                channel_type = channel.get("type", "channel")
+                # Use name as key, formatted description as value
+                targets[channel_name] = f"{channel_name} ({channel_type})"
+            return targets if targets else None
+
+        # Fallback to static targets if coordinator unavailable
         return {
+            "home": "Home Channel",
             "general": "General Chat",
-            "notifications": "Notifications Room",
-            "alerts": "Alerts Room",
         }
 
     async def async_send_message(self, message: str = "", **kwargs: Any) -> None:

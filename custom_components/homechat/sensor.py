@@ -33,6 +33,7 @@ class HomeChatBaseSensor(CoordinatorEntity[HomeChatDataCoordinator], SensorEntit
     """Base class for HomeChat sensors."""
 
     _attr_has_entity_name = True
+    _attr_entity_registry_enabled_default = True
 
     def __init__(
         self,
@@ -46,13 +47,29 @@ class HomeChatBaseSensor(CoordinatorEntity[HomeChatDataCoordinator], SensorEntit
     @property
     def device_info(self) -> dict[str, Any]:
         """Return device info."""
-        return {
+        host = self._entry.data.get("host")
+        port = self._entry.data.get("port")
+        ssl = self._entry.data.get("ssl", False)
+        scheme = "https" if ssl else "http"
+
+        # Get version from coordinator if available
+        sw_version = None
+        if self.coordinator.data:
+            sw_version = self.coordinator.data.get("version")
+
+        device_info: dict[str, Any] = {
             "identifiers": {(DOMAIN, self._entry.entry_id)},
             "name": "HomeChat Server",
             "manufacturer": "HomeChat",
             "model": "Chat Server",
-            "configuration_url": f"http://{self._entry.data.get('host')}:{self._entry.data.get('port')}",
+            "configuration_url": f"{scheme}://{host}:{port}",
+            "suggested_area": "Office",
         }
+
+        if sw_version:
+            device_info["sw_version"] = sw_version
+
+        return device_info
 
 
 class HomeChatStatusSensor(HomeChatBaseSensor):
