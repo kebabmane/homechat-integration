@@ -498,6 +498,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register services
     await async_register_services(hass, api)
 
+    # Register DM notify services (e.g., notify.homechat_dm_rhys)
+    await async_register_dm_notify_services(hass, api)
+
     # Register update listener
     entry.async_on_unload(entry.add_update_listener(update_listener))
 
@@ -835,3 +838,55 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""
     await hass.config_entries.async_reload(entry.entry_id)
+
+
+# DM Notify service schema
+DM_NOTIFY_SCHEMA = vol.Schema(
+    {
+        vol.Required("message"): cv.string,
+        vol.Optional("title"): cv.string,
+        vol.Optional("data"): dict,
+    }
+)
+
+# User ID mapping for DM notify services
+DM_USER_IDS = {
+    "rhys": 2,  # Rhys's user ID in HomeChat
+}
+
+
+async def async_register_dm_notify_services(hass: HomeAssistant, api: HomeChatAPI) -> None:
+    """Register DM notify services for configured users."""
+
+    for username, user_id in DM_USER_IDS.items():
+        service_name = f"homechat_dm_{username}"
+
+        def create_dm_handler(uid: int, uname: str, api_ref: HomeChatAPI):
+            """Create a DM handler closure for the specific user."""
+            async def dm_handler(call: ServiceCall) -> None:
+                """Handle DM notify service call."""
+                message = call.data.get("message", "")
+                title = call.data.get("title")
+
+                # Format message with title if provided
+                full_message = message
+                if title:
+                    full_message = f"**{title}**\n{message}"
+
+                try:
+                    await api_ref.async_send_dm(uid, full_message)
+                    _LOGGER.info("Sent DM to %s (user_id=%d): %s", uname, uid, message[:50])
+                except Exception as err:
+                    _LOGGER.error("Failed to send DM to %s: %s", uname, err)
+
+            return dm_handler
+
+        # Register the notify service
+        if not hass.services.has_service("notify", service_name):
+            hass.services.async_register(
+                "notify",
+                service_name,
+                create_dm_handler(user_id, username, api),
+                schema=DM_NOTIFY_SCHEMA,
+            )
+            _LOGGER.info("Registered notify.%s service for DMs (user_id=%d)", service_name, user_id)
