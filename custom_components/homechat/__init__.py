@@ -357,13 +357,13 @@ class HomeChatAPI:
 
     async def async_send_dm(self, user_id: int, message: str) -> dict[str, Any]:
         """Send a direct message to a user in HomeChat."""
-        url = f"{self.base_url}{API_DM_START}"
+        # Use the user-specific messages endpoint which correctly handles DMs
+        url = f"{self.base_url}/api/v1/users/{user_id}/messages"
         headers = {
             "Authorization": f"Bearer {self.api_token}",
             "Content-Type": "application/json",
         }
         data = {
-            "user_id": user_id,
             "message": message,
         }
 
@@ -372,7 +372,7 @@ class HomeChatAPI:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
-            _LOGGER.error("Error sending DM in HomeChat: %s", err)
+            _LOGGER.error("Error sending DM to user %s in HomeChat: %s", user_id, err)
             raise
 
     async def async_search(
