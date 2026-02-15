@@ -60,6 +60,7 @@
     "error": {
       "cannot_connect": "Failed to connect to HomeChat. Please check your host, port, and network connectivity.",
       "invalid_auth": "Invalid API token. Please check your credentials in the HomeChat admin panel.",
+      "insufficient_scopes": "API token lacks required permissions. Please create a new token with full access or appropriate scopes.",
       "unknown": "An unexpected error occurred. Please check the logs."
     },
     "abort": {

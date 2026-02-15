@@ -26,6 +26,7 @@ from .const import (
     DEFAULT_BOT_USERNAME,
     ERROR_CANNOT_CONNECT,
     ERROR_INVALID_AUTH,
+    ERROR_INSUFFICIENT_SCOPES,
     ERROR_UNKNOWN,
 )
 
@@ -144,6 +145,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["base"] = ERROR_CANNOT_CONNECT
         except InvalidAuth:
             errors["base"] = ERROR_INVALID_AUTH
+        except InsufficientScopes:
+            errors["base"] = ERROR_INSUFFICIENT_SCOPES
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception")
             errors["base"] = ERROR_UNKNOWN
@@ -180,6 +183,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["base"] = ERROR_CANNOT_CONNECT
         except InvalidAuth:
             errors["base"] = ERROR_INVALID_AUTH
+        except InsufficientScopes:
+            errors["base"] = ERROR_INSUFFICIENT_SCOPES
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception")
             errors["base"] = ERROR_UNKNOWN
@@ -225,6 +230,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason=ERROR_CANNOT_CONNECT)
         except InvalidAuth:
             return self.async_abort(reason=ERROR_INVALID_AUTH)
+        except InsufficientScopes:
+            return self.async_abort(reason=ERROR_INSUFFICIENT_SCOPES)
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception during import")
             return self.async_abort(reason=ERROR_UNKNOWN)
@@ -263,6 +270,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["base"] = ERROR_CANNOT_CONNECT
         except InvalidAuth:
             errors["base"] = ERROR_INVALID_AUTH
+        except InsufficientScopes:
+            errors["base"] = ERROR_INSUFFICIENT_SCOPES
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Unexpected exception during reconfigure")
             errors["base"] = ERROR_UNKNOWN
@@ -350,10 +359,15 @@ class InvalidAuth(Exception):
     """Error to indicate there is invalid auth."""
 
 
+class InsufficientScopes(Exception):
+    """Error to indicate the token lacks required scopes."""
+
+
 async def validate_input(hass, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect.
 
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
+    Tests connection, authentication, and required API scopes.
     """
     host = data[CONF_HOST]
     port = data[CONF_PORT]
@@ -363,8 +377,9 @@ async def validate_input(hass, data: dict[str, Any]) -> dict[str, Any]:
     session = async_get_clientsession(hass)
     scheme = "https" if ssl else "http"
     base_url = f"{scheme}://{host}:{port}"
+    headers = {"Authorization": f"Bearer {api_token}"}
 
-    # Test health endpoint
+    # Test health endpoint (no auth required)
     health_url = f"{base_url}/api/v1/health"
     try:
         async with session.get(health_url, timeout=10) as response:
@@ -375,19 +390,31 @@ async def validate_input(hass, data: dict[str, Any]) -> dict[str, Any]:
         _LOGGER.error("Connection error: %s", err)
         raise CannotConnect from err
 
-    # Test authentication
+    # Test authentication with messages endpoint
     auth_url = f"{base_url}/api/v1/messages"
-    headers = {"Authorization": f"Bearer {api_token}"}
     try:
         async with session.get(auth_url, headers=headers, timeout=10) as response:
             if response.status == 401:
                 raise InvalidAuth
-            # Any other status is fine for now - we just need to test auth
+            if response.status == 403:
+                raise InsufficientScopes
     except aiohttp.ClientError as err:
         if "401" in str(err):
             raise InvalidAuth from err
         _LOGGER.error("Auth test error: %s", err)
         raise CannotConnect from err
+
+    # Test channels endpoint to verify channel scope
+    channels_url = f"{base_url}/api/v1/channels"
+    try:
+        async with session.get(channels_url, headers=headers, timeout=10) as response:
+            if response.status == 401:
+                raise InvalidAuth
+            if response.status == 403:
+                _LOGGER.warning("Token may lack channel:read scope")
+                # Don't fail, but log warning - channels are optional
+    except aiohttp.ClientError as err:
+        _LOGGER.debug("Channels test error (non-fatal): %s", err)
 
     # Return info that you want to store in the config entry.
     return {

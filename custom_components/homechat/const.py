@@ -55,4 +55,5 @@ EVENT_HOMECHAT_BOT_MESSAGE = "homechat_bot_message"
 # Error messages
 ERROR_CANNOT_CONNECT = "cannot_connect"
 ERROR_INVALID_AUTH = "invalid_auth"
+ERROR_INSUFFICIENT_SCOPES = "insufficient_scopes"
 ERROR_UNKNOWN = "unknown"

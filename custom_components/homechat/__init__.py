@@ -495,11 +495,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     )
 
-    # Register services
-    await async_register_services(hass, api)
+    # Register services (uses hass.data to get API dynamically)
+    await async_register_services(hass)
 
-    # Register DM notify services (e.g., notify.homechat_dm_rhys)
-    await async_register_dm_notify_services(hass, api)
+    # Register DM notify services dynamically from API users
+    await async_register_dm_notify_services(hass)
 
     # Register update listener
     entry.async_on_unload(entry.add_update_listener(update_listener))
@@ -669,11 +669,26 @@ def _get_filename_from_path(image_path: str) -> str:
     return Path(image_path).name or "image.jpg"
 
 
-async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None:
+def _get_api(hass: HomeAssistant) -> HomeChatAPI | None:
+    """Get the first available HomeChat API instance."""
+    if DOMAIN not in hass.data:
+        return None
+    for entry_data in hass.data[DOMAIN].values():
+        if isinstance(entry_data, dict) and "api" in entry_data:
+            return entry_data["api"]
+    return None
+
+
+async def async_register_services(hass: HomeAssistant) -> None:
     """Register HomeChat services."""
 
     async def send_message(call: ServiceCall) -> None:
         """Handle send_message service call."""
+        api = _get_api(hass)
+        if not api:
+            _LOGGER.error("HomeChat not configured - cannot send message")
+            return
+
         message = call.data["message"]
         room_id = call.data.get("room_id")
         user_id = call.data.get("user_id")
@@ -718,16 +733,21 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
 
     async def send_notification(call: ServiceCall) -> None:
         """Handle send_notification service call."""
+        api = _get_api(hass)
+        if not api:
+            _LOGGER.error("HomeChat not configured - cannot send notification")
+            return
+
         message = call.data["message"]
         title = call.data.get("title", "Home Assistant Notification")
         priority = call.data.get("priority", "normal")
         room_id = call.data.get("room_id")
-        
+
         # Format as notification
         formatted_message = f"🏠 **{title}**\n{message}"
         if priority in ("high", "urgent"):
             formatted_message = f"⚠️ {formatted_message}"
-        
+
         try:
             await api.async_send_message(formatted_message, room_id=room_id, title=title)
             _LOGGER.info("Sent notification to HomeChat: %s", title)
@@ -736,6 +756,11 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
 
     async def create_bot(call: ServiceCall) -> None:
         """Handle create_bot service call."""
+        api = _get_api(hass)
+        if not api:
+            _LOGGER.error("HomeChat not configured - cannot create bot")
+            return
+
         name = call.data["name"]
         description = call.data.get("description")
         webhook_id = call.data.get("webhook_id")
@@ -748,6 +773,11 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
 
     async def list_channels(call: ServiceCall) -> None:
         """Handle list_channels service call."""
+        api = _get_api(hass)
+        if not api:
+            _LOGGER.error("HomeChat not configured - cannot list channels")
+            return
+
         try:
             result = await api.async_get_channels()
             channels = result.get("channels", [])
@@ -762,6 +792,11 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
 
     async def join_channel(call: ServiceCall) -> None:
         """Handle join_channel service call."""
+        api = _get_api(hass)
+        if not api:
+            _LOGGER.error("HomeChat not configured - cannot join channel")
+            return
+
         channel_id = call.data["channel_id"]
 
         try:
@@ -772,6 +807,11 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
 
     async def leave_channel(call: ServiceCall) -> None:
         """Handle leave_channel service call."""
+        api = _get_api(hass)
+        if not api:
+            _LOGGER.error("HomeChat not configured - cannot leave channel")
+            return
+
         channel_id = call.data["channel_id"]
 
         try:
@@ -782,6 +822,11 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
 
     async def send_dm(call: ServiceCall) -> None:
         """Handle send_dm service call."""
+        api = _get_api(hass)
+        if not api:
+            _LOGGER.error("HomeChat not configured - cannot send DM")
+            return
+
         user_id = call.data["user_id"]
         message = call.data["message"]
 
@@ -793,6 +838,11 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
 
     async def search(call: ServiceCall) -> None:
         """Handle search service call."""
+        api = _get_api(hass)
+        if not api:
+            _LOGGER.error("HomeChat not configured - cannot search")
+            return
+
         query = call.data["query"]
         search_type = call.data.get("type", "all")
 
@@ -833,6 +883,7 @@ async def async_register_services(hass: HomeAssistant, api: HomeChatAPI) -> None
         hass.services.async_register(
             DOMAIN, SERVICE_SEARCH, search, schema=SEARCH_SCHEMA
         )
+        _LOGGER.info("Registered HomeChat services")
 
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -849,24 +900,52 @@ DM_NOTIFY_SCHEMA = vol.Schema(
     }
 )
 
-# User ID mapping for DM notify services
-# Add your own users here to create notify.homechat_dm_{username} services
-# Example: {"john": 1, "jane": 2} creates notify.homechat_dm_john, notify.homechat_dm_jane
-DM_USER_IDS: dict[str, int] = {
-    # "username": user_id,  # Get user ID from HomeChat admin panel
-}
+async def async_register_dm_notify_services(hass: HomeAssistant) -> None:
+    """Register DM notify services for configured users.
 
+    DM notify services are created dynamically based on channel members.
+    This allows automations to send DMs via notify.homechat_dm_{username}.
+    """
+    api = _get_api(hass)
+    if not api:
+        _LOGGER.debug("No API available for DM notify services")
+        return
 
-async def async_register_dm_notify_services(hass: HomeAssistant, api: HomeChatAPI) -> None:
-    """Register DM notify services for configured users."""
+    # Try to discover users from channel members
+    discovered_users: dict[str, int] = {}
+    try:
+        channels_response = await api.async_get_channels()
+        channels = channels_response.get("channels", [])
 
-    for username, user_id in DM_USER_IDS.items():
+        # Get members from first few channels to discover users
+        for channel in channels[:5]:  # Limit to avoid too many API calls
+            try:
+                members_response = await api.async_get_channel_members(channel.get("id"))
+                members = members_response.get("members", [])
+                for member in members:
+                    username = member.get("username")
+                    user_id = member.get("id")
+                    if username and user_id and username not in discovered_users:
+                        discovered_users[username] = user_id
+            except Exception as err:
+                _LOGGER.debug("Could not get members for channel %s: %s", channel.get("name"), err)
+                continue
+    except Exception as err:
+        _LOGGER.debug("Could not discover users for DM services: %s", err)
+
+    # Register DM services for discovered users
+    for username, user_id in discovered_users.items():
         service_name = f"homechat_dm_{username}"
 
-        def create_dm_handler(uid: int, uname: str, api_ref: HomeChatAPI):
+        def create_dm_handler(uid: int, uname: str):
             """Create a DM handler closure for the specific user."""
             async def dm_handler(call: ServiceCall) -> None:
                 """Handle DM notify service call."""
+                dm_api = _get_api(hass)
+                if not dm_api:
+                    _LOGGER.error("HomeChat not configured - cannot send DM")
+                    return
+
                 message = call.data.get("message", "")
                 title = call.data.get("title")
 
@@ -876,7 +955,7 @@ async def async_register_dm_notify_services(hass: HomeAssistant, api: HomeChatAP
                     full_message = f"**{title}**\n{message}"
 
                 try:
-                    await api_ref.async_send_dm(uid, full_message)
+                    await dm_api.async_send_dm(uid, full_message)
                     _LOGGER.info("Sent DM to %s (user_id=%d): %s", uname, uid, message[:50])
                 except Exception as err:
                     _LOGGER.error("Failed to send DM to %s: %s", uname, err)
@@ -888,7 +967,10 @@ async def async_register_dm_notify_services(hass: HomeAssistant, api: HomeChatAP
             hass.services.async_register(
                 "notify",
                 service_name,
-                create_dm_handler(user_id, username, api),
+                create_dm_handler(user_id, username),
                 schema=DM_NOTIFY_SCHEMA,
             )
             _LOGGER.info("Registered notify.%s service for DMs (user_id=%d)", service_name, user_id)
+
+    if discovered_users:
+        _LOGGER.info("Discovered %d users for DM notify services", len(discovered_users))
