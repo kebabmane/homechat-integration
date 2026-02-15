@@ -87,9 +87,9 @@ create_bot:
       selector:
         text:
           multiline: true
-    webhook_url:
-      name: Webhook URL
-      description: Optional webhook URL for two-way communication
+    webhook_id:
+      name: Webhook ID
+      description: Optional webhook ID for two-way communication
       required: false
       selector:
         text:

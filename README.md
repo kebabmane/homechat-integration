@@ -109,13 +109,13 @@ data:
 
 ### homechat.send_dm
 
-Send a direct message to a user.
+Send a direct message to a user by their ID.
 
 ```yaml
 service: homechat.send_dm
 data:
   message: "Your package has arrived"
-  user_id: "john"
+  user_id: 2  # User ID from HomeChat (integer)
 ```
 
 ## Message Options

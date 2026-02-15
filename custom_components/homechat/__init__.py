@@ -850,8 +850,10 @@ DM_NOTIFY_SCHEMA = vol.Schema(
 )
 
 # User ID mapping for DM notify services
-DM_USER_IDS = {
-    "rhys": 2,  # Rhys's user ID in HomeChat
+# Add your own users here to create notify.homechat_dm_{username} services
+# Example: {"john": 1, "jane": 2} creates notify.homechat_dm_john, notify.homechat_dm_jane
+DM_USER_IDS: dict[str, int] = {
+    # "username": user_id,  # Get user ID from HomeChat admin panel
 }
 
 
