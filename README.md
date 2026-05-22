@@ -6,6 +6,8 @@
 
 Connect Home Assistant to HomeChat for smart home notifications and two-way communication.
 
+This integration targets HomeChat API v1 and is designed to work with either the standalone Rails deployment or the HomeChat Home Assistant add-on.
+
 ## Features
 
 | Feature | Description |
@@ -53,6 +55,17 @@ cp -r custom_components/homechat <ha_config>/custom_components/
    - **SSL**: Enable if using HTTPS
    - **API Token**: From HomeChat admin panel
 4. Configure bot options (optional)
+
+## Compatibility
+
+| Component | Requirement |
+|-----------|-------------|
+| Home Assistant | Recent supported Core release with custom integrations enabled |
+| HomeChat server | API v1, reachable from Home Assistant |
+| Authentication | Active HomeChat API token |
+| Network | HA must be able to reach `/api/v1/health` and webhook endpoints |
+
+The integration should treat HomeChat server metadata from `/api/v1/server_info` and `/api/v1/health` as the compatibility source. If the server raises `min_client_version` in the future, update this integration before relying on new API fields.
 
 ## Services
 
@@ -294,10 +307,28 @@ logger:
 4. Copy the full token (shown once)
 5. Use in integration configuration
 
+## Development
+
+```bash
+python -m pip install -r requirements_test.txt
+pytest
+```
+
+Tests cover config flow setup, initialization, and sensor behaviour. Avoid committing Home Assistant cache files, `.pytest_cache`, or `__pycache__` output.
+
+## Security Notes
+
+- Store API tokens only in Home Assistant config entries or secrets.
+- Do not log bearer tokens or webhook credentials.
+- Notification payloads may contain sensitive home state; keep automations deliberate about what they send.
+- Prefer HTTPS when Home Assistant connects to a remote HomeChat server.
+
 ## Related Documentation
 
 - [HomeChat Server](https://github.com/kebabmane/homechat)
 - [HomeChat Add-on](https://github.com/kebabmane/homechat-addon)
+- [HomeChat Android](https://github.com/kebabmane/homechat-android)
+- [HomeChat iOS](https://github.com/kebabmane/homechat-ios)
 - [Integration Setup Guide](https://github.com/kebabmane/homechat/blob/main/docs/deployment/home-assistant.md)
 
 ## Support
