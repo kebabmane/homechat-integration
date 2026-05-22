@@ -248,7 +248,7 @@ class HomeChatAPI:
         }
 
         try:
-            async with self._session.post(url, headers=headers, timeout=API_TIMEOUT) as response:
+            async with self._session.delete(url, headers=headers, timeout=API_TIMEOUT) as response:
                 response.raise_for_status()
                 return await response.json()
         except aiohttp.ClientError as err:
@@ -458,7 +458,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 description="Home Assistant Bot for two-way communication",
                 webhook_id=webhook_id,
             )
-            _LOGGER.info("Created HomeChat bot: %s", result)
+            _LOGGER.info("Created HomeChat bot for webhook %s", webhook_id)
 
             # Store the webhook_secret and bot_id from the response
             bot_data = result.get("bot", result)
@@ -482,8 +482,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.warning("Failed to create HomeChat bot: %s", err)
 
     # Register webhook if configured (with secret for verification)
-    if webhook_id:
+    if webhook_id and webhook_secret:
         await async_register_webhook(hass, entry.entry_id, webhook_id, webhook_secret)
+    elif webhook_id:
+        _LOGGER.error("HomeChat webhook is configured but no webhook secret is available; webhook not registered")
 
     # Set up platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -557,20 +559,18 @@ async def async_register_webhook(
             # Read raw body for signature verification
             body = await request.read()
 
-            # Verify signature if we have a secret
-            if webhook_secret:
-                signature = request.headers.get("X-HomeChat-Signature", "")
-                if not _verify_webhook_signature(body, signature, webhook_secret):
-                    _LOGGER.warning("Invalid webhook signature received")
-                    return web.json_response(
-                        {"status": "error", "message": "Invalid signature"},
-                        status=401
-                    )
+            signature = request.headers.get("X-HomeChat-Signature", "")
+            if not _verify_webhook_signature(body, signature, webhook_secret or ""):
+                _LOGGER.warning("Invalid HomeChat webhook signature received")
+                return web.json_response(
+                    {"status": "error", "message": "Invalid signature"},
+                    status=401
+                )
 
             # Parse JSON body
             import json
             data = json.loads(body)
-            _LOGGER.debug("Received HomeChat webhook: %s", data)
+            _LOGGER.debug("Received HomeChat webhook type=%s channel_id=%s", data.get("type"), data.get("channel_id"))
 
             # Fire event for automations
             event_data = {
@@ -612,7 +612,15 @@ async def _load_image(hass: HomeAssistant, image_path: str) -> bytes | None:
             session = async_get_clientsession(hass)
             async with session.get(image_path, timeout=API_TIMEOUT) as response:
                 if response.status == 200:
-                    return await response.read()
+                    content_type = response.headers.get("Content-Type", "")
+                    if not content_type.startswith("image/"):
+                        _LOGGER.error("Refusing non-image URL content type: %s", content_type)
+                        return None
+                    data = await response.content.read(10 * 1024 * 1024 + 1)
+                    if len(data) > 10 * 1024 * 1024:
+                        _LOGGER.error("Refusing image larger than 10MB from URL")
+                        return None
+                    return data
                 _LOGGER.error("Failed to fetch image from URL: %s (status %s)", image_path, response.status)
                 return None
 
@@ -637,6 +645,12 @@ async def _load_image(hass: HomeAssistant, image_path: str) -> bytes | None:
             path = Path(hass.config.path(image_path))
 
         if path.exists() and path.is_file():
+            if not hass.config.is_allowed_path(str(path)):
+                _LOGGER.error("Image path is not allowed by Home Assistant: %s", path)
+                return None
+            if path.stat().st_size > 10 * 1024 * 1024:
+                _LOGGER.error("Refusing image larger than 10MB: %s", path)
+                return None
             return await hass.async_add_executor_job(path.read_bytes)
 
         _LOGGER.error("Image file not found: %s", image_path)
@@ -695,6 +709,14 @@ async def async_register_services(hass: HomeAssistant) -> None:
         title = call.data.get("title")
         image = call.data.get("image")
 
+        async def send_text_only() -> None:
+            if user_id:
+                await api.async_send_dm(int(user_id), message)
+                _LOGGER.info("Sent HomeChat direct message to user %s", user_id)
+            else:
+                await api.async_send_message(message, room_id, None, title)
+                _LOGGER.info("Sent message to HomeChat room %s", room_id or "default")
+
         try:
             # If image is provided, upload it as media
             if image:
@@ -721,13 +743,12 @@ async def async_register_services(hass: HomeAssistant) -> None:
                         _LOGGER.info("Sent message with image to HomeChat channel %s", room_id)
                     else:
                         _LOGGER.warning("Could not load image from %s, sending message without image", image)
-                        await api.async_send_message(message, room_id, user_id, title)
+                        await send_text_only()
                 else:
                     _LOGGER.warning("Could not get channel ID for %s, sending message without image", room_id)
-                    await api.async_send_message(message, room_id, user_id, title)
+                    await send_text_only()
             else:
-                await api.async_send_message(message, room_id, user_id, title)
-                _LOGGER.info("Sent message to HomeChat: %s", message)
+                await send_text_only()
         except Exception as err:
             _LOGGER.error("Failed to send message to HomeChat: %s", err)
 
@@ -766,8 +787,8 @@ async def async_register_services(hass: HomeAssistant) -> None:
         webhook_id = call.data.get("webhook_id")
 
         try:
-            result = await api.async_create_bot(name, description, webhook_id)
-            _LOGGER.info("Created HomeChat bot: %s", result)
+            await api.async_create_bot(name, description, webhook_id)
+            _LOGGER.info("Created HomeChat bot %s", name)
         except Exception as err:
             _LOGGER.error("Failed to create HomeChat bot: %s", err)
 
@@ -781,7 +802,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
         try:
             result = await api.async_get_channels()
             channels = result.get("channels", [])
-            _LOGGER.info("HomeChat channels: %s", [c.get("name") for c in channels])
+            _LOGGER.info("HomeChat channels listed: %s", len(channels))
             # Fire event with channels data
             hass.bus.async_fire(
                 f"{DOMAIN}_channels_list",
@@ -848,7 +869,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
         try:
             result = await api.async_search(query, search_type)
-            _LOGGER.info("HomeChat search for '%s': %s", query, result)
+            _LOGGER.info("HomeChat search completed type=%s", search_type)
             # Fire event with search results
             hass.bus.async_fire(
                 f"{DOMAIN}_search_results",
