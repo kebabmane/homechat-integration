@@ -67,6 +67,12 @@ cp -r custom_components/homechat <ha_config>/custom_components/
 
 The integration should treat HomeChat server metadata from `/api/v1/server_info` and `/api/v1/health` as the compatibility source. If the server raises `min_client_version` in the future, update this integration before relying on new API fields.
 
+## E2EE Scope
+
+This Home Assistant integration is not an E2EE client. It authenticates to the HomeChat server with an API token and sends server-side automation/notification messages. It cannot decrypt private-channel or direct-message E2EE content, and encrypted private/DM channels should reject plaintext automation writes.
+
+Use public/plaintext rooms for Home Assistant alerts unless the integration is upgraded to generate device keys, receive channel key shares, encrypt message payloads locally, and sign E2EE sender metadata like the first-party clients.
+
 ## Services
 
 ### notify.homechat

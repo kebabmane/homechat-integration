@@ -14,7 +14,7 @@ CONF_BOT_ID = "bot_id"
 
 # Default values
 DEFAULT_PORT = 3000
-DEFAULT_SSL = False
+DEFAULT_SSL = True
 DEFAULT_BOT_USERNAME = "home_assistant_bot"
 
 # API endpoints

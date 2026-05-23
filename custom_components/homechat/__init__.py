@@ -603,12 +603,19 @@ async def async_register_webhook(
 
 async def _load_image(hass: HomeAssistant, image_path: str) -> bytes | None:
     """Load image data from a file path or URL."""
+    import ipaddress
     import os
     from pathlib import Path
+    from urllib.parse import urlparse
 
     try:
         # Check if it's a URL
         if image_path.startswith(("http://", "https://")):
+            parsed = urlparse(image_path)
+            if parsed.scheme != "https" or _blocked_remote_image_host(parsed.hostname, ipaddress):
+                _LOGGER.error("Refusing remote image URL with disallowed scheme or host")
+                return None
+
             session = async_get_clientsession(hass)
             async with session.get(image_path, timeout=API_TIMEOUT) as response:
                 if response.status == 200:
@@ -621,7 +628,7 @@ async def _load_image(hass: HomeAssistant, image_path: str) -> bytes | None:
                         _LOGGER.error("Refusing image larger than 10MB from URL")
                         return None
                     return data
-                _LOGGER.error("Failed to fetch image from URL: %s (status %s)", image_path, response.status)
+                _LOGGER.error("Failed to fetch image from URL host=%s status=%s", parsed.hostname, response.status)
                 return None
 
         # Check if it's a local HA camera proxy URL
@@ -659,6 +666,30 @@ async def _load_image(hass: HomeAssistant, image_path: str) -> bytes | None:
     except Exception as err:
         _LOGGER.error("Error loading image from %s: %s", image_path, err)
         return None
+
+
+def _blocked_remote_image_host(hostname: str | None, ipaddress_module) -> bool:
+    """Block SSRF-prone local/private URL targets for service-provided images."""
+    if not hostname:
+        return True
+
+    normalized = hostname.strip("[]").lower()
+    if normalized in {"localhost", "localhost.localdomain"} or normalized.endswith(".local"):
+        return True
+
+    try:
+        address = ipaddress_module.ip_address(normalized)
+    except ValueError:
+        return False
+
+    return (
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_reserved
+        or address.is_multicast
+        or address.is_unspecified
+    )
 
 
 def _get_filename_from_path(image_path: str) -> str:
@@ -803,10 +834,10 @@ async def async_register_services(hass: HomeAssistant) -> None:
             result = await api.async_get_channels()
             channels = result.get("channels", [])
             _LOGGER.info("HomeChat channels listed: %s", len(channels))
-            # Fire event with channels data
+            # Fire count-only event data to avoid leaking channel names into HA history.
             hass.bus.async_fire(
                 f"{DOMAIN}_channels_list",
-                {"channels": channels}
+                {"channel_count": len(channels)}
             )
         except Exception as err:
             _LOGGER.error("Failed to list HomeChat channels: %s", err)
@@ -870,10 +901,11 @@ async def async_register_services(hass: HomeAssistant) -> None:
         try:
             result = await api.async_search(query, search_type)
             _LOGGER.info("HomeChat search completed type=%s", search_type)
-            # Fire event with search results
+            result_count = len(result.get("results", [])) if isinstance(result, dict) else 0
+            # Fire count-only event data to avoid leaking queries/results into HA history.
             hass.bus.async_fire(
                 f"{DOMAIN}_search_results",
-                {"query": query, "type": search_type, "results": result}
+                {"type": search_type, "result_count": result_count}
             )
         except Exception as err:
             _LOGGER.error("Failed to search HomeChat: %s", err)

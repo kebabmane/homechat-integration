@@ -5,6 +5,19 @@ All notable changes to the HomeChat Home Assistant Integration are documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-05-23
+
+### Added
+- Documented that the Home Assistant integration is not an E2EE client and should use public/plaintext rooms for automation messages.
+
+### Changed
+- Default new connections to SSL enabled.
+- Require re-entering API tokens during reconfiguration instead of pre-filling stored tokens.
+- Reduce event and diagnostics payload detail so channel names, search queries, and results are not written into Home Assistant history or diagnostics.
+
+### Security
+- Remote image loading now requires HTTPS and blocks localhost, `.local`, private, loopback, link-local, reserved, multicast, and unspecified IP targets.
+
 ## [1.2.0] - 2025-01-10
 
 ### Added

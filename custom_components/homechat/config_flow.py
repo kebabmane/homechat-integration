@@ -257,7 +257,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         vol.Required(CONF_HOST, default=entry.data.get(CONF_HOST)): cv.string,
                         vol.Optional(CONF_PORT, default=entry.data.get(CONF_PORT, DEFAULT_PORT)): cv.port,
                         vol.Optional(CONF_SSL, default=entry.data.get(CONF_SSL, DEFAULT_SSL)): cv.boolean,
-                        vol.Required(CONF_API_TOKEN, default=entry.data.get(CONF_API_TOKEN)): cv.string,
+                        vol.Required(CONF_API_TOKEN): cv.string,
                     }
                 ),
             )

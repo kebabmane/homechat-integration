@@ -37,15 +37,13 @@ async def async_get_config_entry_diagnostics(
     }
 
     if coordinator is not None:
+        channels = coordinator.channels or []
         diagnostics_data["coordinator"] = {
             "last_update_success": coordinator.last_update_success,
             "server_status": coordinator.server_status,
-            "channel_count": len(coordinator.channels) if coordinator.channels else 0,
-            "channels": [
-                {"id": c.get("id"), "name": c.get("name"), "type": c.get("type")}
-                for c in (coordinator.channels or [])
-            ],
-            "data": coordinator.data,
+            "channel_count": len(channels),
+            "channel_types": sorted({c.get("type", "unknown") for c in channels}),
+            "has_data": coordinator.data is not None,
         }
 
     return diagnostics_data
